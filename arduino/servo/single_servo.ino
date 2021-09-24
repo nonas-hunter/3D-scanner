@@ -10,9 +10,8 @@ void loop() {
     while (true) {
         int x = Serial.readString().toInt();
 
-        servo1.write(0);
-        delay(1000);
         servo1.write(x);
-        delay(1000);
+        
+
     }
 }
