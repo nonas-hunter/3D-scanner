@@ -1,22 +1,69 @@
 import serial
 import time
+import serial.tools.list_ports
 
 class Communication():
     """Infrastructure for serial communication with the Arduino."""
 
     EOM = "\r\n"
     SEND_MESSAGE_TYPES = ["M", "S", "T"]
-    RECIEVE_MESSAGE_TYPES = ["R"]
+    RECIEVE_MESSAGE_TYPES = ["R", "T"]
 
-    def __init__(self, port='/dev/ttyACM3', baudrate=115200):
+    def __init__(self, baudrate=115200, port=None):
         """Instantiate a Communication object.
 
         Parameters:
-            port (str): the serial port where the arduino is connected.
             baudrate (int): the baudrate of the serial port. This should match the
                 baudrate set on the arduino.
+            port (str): the serial port where the arduino is connected.
         """
-        self.arduino = serial.Serial(port=port, baudrate=baudrate, timeout=5)
+
+        def port_sort(port):
+            """Sort the list of serial ports. For use in sort function.
+
+            Parameters:
+                port (serial.tools.list_port): Serial port object.
+            Returns:
+                (int): 1 if A in port.device, 2 if Arduino in port.description,
+                    0 otherwise.
+            """
+            if "Arduino" in port.description:
+                return 2
+            elif "A" in port.device:
+                return 1
+            else:
+                return 0
+        
+        if isinstance(port, str):
+            print("Starting communication with Arduino...")
+            self.arduino = serial.Serial(port=port, baudrate=baudrate, timeout=5)
+        else:
+            print("Looking for Arduino...")
+            serial_ports = [
+                port
+                for port in serial.tools.list_ports.comports()
+                if "Arduino" in port.description or "ACM" in port.device
+            ]
+            serial_ports.sort(reverse=True, key=port_sort)
+            arduino_ports = [port.device for port in serial_ports]
+            if not arduino_ports:
+                raise IOError("No Arduino found.")
+            if len(arduino_ports) > 1:
+                print(f"Multiple Arduinos found! Using the first: {arduino_ports[0]}")
+            print(
+                f"Possible Arduino Found: {arduino_ports[0]}\n"
+                f"Attempting to connect..."
+            )
+            self.arduino = serial.Serial(port=arduino_ports[0], baudrate=baudrate, timeout=5)
+
+        time.sleep(5)
+        self.arduino.flush()
+        response = self.send_recieve("T","12345")
+        if response["data"] == "12345":
+            print("Serial communication ready!")
+        else:
+            print(f"ERROR: {response}")
+   
 
     def send(self, message_type, message_data):
         """Send data to the arduino.
@@ -35,13 +82,14 @@ class Communication():
         message = f"{message_type}{message_data}{self.EOM}"
         self.arduino.write(bytes(message, 'utf-8'))
         
+        
     def receive(self):
         """Receive data from the arduino.
 
         Returns:
             (dict): contains message type, processed data, and error value.
         """
-        raw_data = self.arduino.readline().decode("utf-8") 
+        raw_data = self.arduino.read_until(bytes(self.EOM, 'utf-8')).decode("utf-8") 
         try:
             message_type = raw_data[0]
         except IndexError:
@@ -80,12 +128,12 @@ class Communication():
 # Systems Test
 if __name__ == "__main__":
     comms = Communication()
-    stop = False
-    while not stop:
-        resp = comms.send_recieve("M", "<180+180>")
-        print(resp)
-        time.sleep(1)
-        if resp["error"] == 0:
-            stop = True
-        # print(comms.send_recieve("M", "<100+100>"))
-        # time.sleep(1)
+    print(comms.send_recieve("M", "1"))
+    print(comms.send_recieve("M", "2"))
+    print(comms.send_recieve("M", "3"))
+    print(comms.send_recieve("S", "1"))
+    print(comms.send_recieve("S", "2"))
+    print(comms.send_recieve("S", "3"))
+    print(comms.send_recieve("M", "1"))
+    print(comms.send_recieve("S", "2"))
+    print(comms.send_recieve("M", "3"))
