@@ -7,7 +7,7 @@ class Communication():
 
     EOM = "\r\n"
     SEND_MESSAGE_TYPES = ["M", "S", "T"]
-    RECIEVE_MESSAGE_TYPES = ["R", "T"]
+    RECIEVE_MESSAGE_TYPES = ["M", "R","T"]
 
     def __init__(self, baudrate=115200, port=None):
         """Instantiate a Communication object.
@@ -123,7 +123,10 @@ class Communication():
             (dict): contains message type, processed data, and error value.
         """
         self.send(message_type, message_data)
-        return self.receive()
+        response = self.receive()
+        if response["message_type"] != message_type:
+            raise ValueError(f"Unexpected message type. Message: {response}")
+        return response
 
 # Systems Test
 if __name__ == "__main__":
