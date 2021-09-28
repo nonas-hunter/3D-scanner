@@ -22,7 +22,3 @@ class Scanner():
 
     def get_distance(self):
         pass
-
-if __name__ == "__main__":
-    scanner = Scanner()
-    scanner.set_position(100,100)
