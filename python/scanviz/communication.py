@@ -1,9 +1,10 @@
-import serial
 import time
 import serial.tools.list_ports
 import logging
 import logging.config
 import os
+
+import serial
 
 logger_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logging.conf')
 logging.config.fileConfig(logger_path, disable_existing_loggers=False)
