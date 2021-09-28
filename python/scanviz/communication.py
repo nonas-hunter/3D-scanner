@@ -1,13 +1,21 @@
 import serial
 import time
 import serial.tools.list_ports
+import logging
+import logging.config
+import os
+
+logger_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logging.conf')
+logging.config.fileConfig(logger_path, disable_existing_loggers=False)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 class Communication():
     """Infrastructure for serial communication with the Arduino."""
 
     EOM = "\r\n"
     SEND_MESSAGE_TYPES = ["M", "S", "T"]
-    RECIEVE_MESSAGE_TYPES = ["M", "R","T"]
+    RECIEVE_MESSAGE_TYPES = ["M", "S","T"]
 
     def __init__(self, baudrate=115200, port=None):
         """Instantiate a Communication object.
@@ -17,7 +25,6 @@ class Communication():
                 baudrate set on the arduino.
             port (str): the serial port where the arduino is connected.
         """
-
         def port_sort(port):
             """Sort the list of serial ports. For use in sort function.
 
@@ -35,10 +42,10 @@ class Communication():
                 return 0
         
         if isinstance(port, str):
-            print("Starting communication with Arduino...")
+            logger.info("Starting communication with Arduino...")
             self.arduino = serial.Serial(port=port, baudrate=baudrate, timeout=5)
         else:
-            print("Looking for Arduino...")
+            logger.info("Looking for Arduino...")
             serial_ports = [
                 port
                 for port in serial.tools.list_ports.comports()
@@ -49,20 +56,18 @@ class Communication():
             if not arduino_ports:
                 raise IOError("No Arduino found.")
             if len(arduino_ports) > 1:
-                print(f"Multiple Arduinos found! Using the first: {arduino_ports[0]}")
-            print(
-                f"Possible Arduino Found: {arduino_ports[0]}\n"
-                f"Attempting to connect..."
-            )
+                logger.info(f"Multiple Arduinos found! Using the first: {arduino_ports[0]}")
+            logger.info(f"Possible Arduino Found: {arduino_ports[0]}")
+            logger.info("Attempting to connect...")
             self.arduino = serial.Serial(port=arduino_ports[0], baudrate=baudrate, timeout=5)
 
         time.sleep(5)
         self.arduino.flush()
         response = self.send_recieve("T","12345")
         if response["data"] == "12345":
-            print("Serial communication ready!")
+            logger.info("Serial communication ready!")
         else:
-            print(f"ERROR: {response}")
+            logger.info(f"ERROR: {response}")
    
 
     def send(self, message_type, message_data):

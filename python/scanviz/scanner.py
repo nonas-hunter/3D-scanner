@@ -1,6 +1,14 @@
 import time
+import logging
+import logging.config
+import os
 
 from scanviz.communication import Communication
+
+logger_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logging.conf')
+logging.config.fileConfig(logger_path, disable_existing_loggers=False)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 class Scanner():
     """API for interfacing with the scanner"""
@@ -17,14 +25,17 @@ class Scanner():
         """
         if pitch > 999 or yaw > 999:
             raise ValueError("Cannot send motor angles greater than 180 deg.")
-        print(f"Setting servo positions to (pitch) {pitch}, (yaw) {yaw}.")
+        logger.debug(f"Setting servo positions to (pitch) {pitch}, (yaw) {yaw}.")
         message = f"{pitch:03d}+{yaw:03d}"
         response = self.comms.send_recieve("M", message)
         if int(response["data"]) == 0:
             raise ValueError("Servo did not respond. Stopping program.")
         else:
             time.sleep(int(response["data"]))
-        print("Servo positions have been set.")
+        logger.debug("Servo positions have been set.")
 
     def get_distance(self):
-        pass
+        logger.debug("Getting measured sensor distance.")
+        response = self.comms.send_recieve("S", "GET")
+        logger.debug(f"Information recieved: {response['data']}")
+        return int(response["data"])
