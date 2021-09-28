@@ -9,6 +9,12 @@ class Scanner():
         self.comms = Communication()
 
     def set_position(self, pitch, yaw):
+        """Send a message to the Arduino to set the pitch and roll of the Scanner.
+
+        Parameters:
+            pitch (int): An integer representing the desired pitch angle.
+            yaw (int): An integer representing the desired yaw angle.
+        """
         if pitch > 999 or yaw > 999:
             raise ValueError("Cannot send motor angles greater than 180 deg.")
         print(f"Setting servo positions to (pitch) {pitch}, (yaw) {yaw}.")
