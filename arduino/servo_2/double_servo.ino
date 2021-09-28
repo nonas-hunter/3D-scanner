@@ -17,13 +17,13 @@ void loop() {
 
         String x&y = Serial.readString();
         Serial.print(x&y);
-        //int x = Serial.readString().toInt();
+        int x = Serial.readString().toInt();
         
-        //for(wait_time = 0; wait_time <= 100; wait_time += 1){
-            //servo1.write(x);
-            //servo2.write(x);
-            //delay(15);
-        //}
+        for(wait_time = 0; wait_time <= 100; wait_time += 1){
+            servo1.write(x);
+            servo2.write(x);
+            delay(15);
+        }
 
         
     }
