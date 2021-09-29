@@ -52,10 +52,10 @@ class Communication():
                 for port in serial.tools.list_ports.comports()
                 if "Arduino" in port.description or "ACM" in port.device
             ]
+            if not serial_ports:
+                raise IOError("No Arduino found.")
             serial_ports.sort(reverse=True, key=port_sort)
             arduino_ports = [port.device for port in serial_ports]
-            if not arduino_ports:
-                raise IOError("No Arduino found.")
             if len(arduino_ports) > 1:
                 logger.info(f"Multiple Arduinos found! Using the first: {arduino_ports[0]}")
             logger.info(f"Possible Arduino Found: {arduino_ports[0]}")
