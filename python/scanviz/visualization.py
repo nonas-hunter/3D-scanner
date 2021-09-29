@@ -17,16 +17,23 @@ class Visualization():
     def __init__(self):
         """Instantiate visualization object"""
         pass
-    
-    def create_viz(self):
+
+    def generate_mesh(self, resolution):
+        """Generate pitch & yaw angles for scanning
+        
+        Parameters:
+            resolution (int): Number of points to scan
+        """
+        pitch = np.linspace(-(np.pi / 2), (np.pi / 2), resolution)
+        yaw = np.linspace(-(np.pi / 2), (np.pi / 2), resolution)
+        pitch_mesh, yaw_mesh = np.meshgrid(pitch, yaw)
+        return pitch_mesh, yaw_mesh
+
+    def create_viz(self, pitch, yaw, radius):
         """Create a matplotlib graph to visualize the data."""
-        pitch, yaw = np.linspace(-(np.pi / 2), (np.pi / 2), 40), np.linspace(-(np.pi / 2), (np.pi / 2), 40)
-        meshgrid_pitch, meshgrid_yaw = np.meshgrid(pitch, yaw)
-        print(meshgrid_pitch[:,0])
-        r = meshgrid_pitch/meshgrid_pitch
-        x = r * np.sin(meshgrid_yaw) * np.cos(meshgrid_pitch)
-        y = r * np.sin(meshgrid_pitch)
-        z = r * np.cos(meshgrid_pitch) * np.cos(meshgrid_yaw)
+        x = radius * np.sin(yaw) * np.cos(pitch)
+        y = radius * np.sin(pitch)
+        z = radius * np.cos(pitch) * np.cos(yaw)
 
         # 2D Contour
         fig = plt.figure(figsize=plt.figaspect(2.))
