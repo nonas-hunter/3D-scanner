@@ -2,7 +2,7 @@
 #define DATA_INDEX 1
 #define PITCH_SERVO_PIN 9
 #define YAW_SERVO_PIN 10
-#define DISTANCE_SENSOR_PIN 1
+#define DISTANCE_SENSOR_PIN 0
 #include <Servo.h>
 
 Servo pitchServo;
