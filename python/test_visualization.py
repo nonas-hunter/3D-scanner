@@ -10,4 +10,5 @@ logger.setLevel(logging.DEBUG)
 
 viz = Visualization()
 pitch, yaw = viz.generate_mesh(10)
+print(pitch)
 viz.create_viz(pitch, yaw, pitch/pitch)

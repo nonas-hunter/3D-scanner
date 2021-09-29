@@ -23,17 +23,24 @@ class Visualization():
         
         Parameters:
             resolution (int): Number of points to scan
+        Returns:
+            (list): List of lists outlining all the pitch values to scan.
+            (list): List of lists outlining all the yaw values to scan.
         """
-        pitch = np.linspace(-(np.pi / 2), (np.pi / 2), resolution)
-        yaw = np.linspace(-(np.pi / 2), (np.pi / 2), resolution)
+        if resolution > 60:
+            raise ValueError("Resolution can't be higher than 180")
+        pitch = np.linspace(-30, 30, resolution)
+        yaw = np.linspace(-60, 60, resolution*2)
         pitch_mesh, yaw_mesh = np.meshgrid(pitch, yaw)
         return pitch_mesh, yaw_mesh
 
     def create_viz(self, pitch, yaw, radius):
         """Create a matplotlib graph to visualize the data."""
-        x = radius * np.sin(yaw) * np.cos(pitch)
-        y = radius * np.sin(pitch)
-        z = radius * np.cos(pitch) * np.cos(yaw)
+        pitch_rad = np.deg2rad(pitch)
+        yaw_rad = np.deg2rad(yaw)
+        x = radius * np.sin(yaw_rad) * np.cos(pitch_rad)
+        y = radius * np.sin(pitch_rad)
+        z = radius * np.cos(pitch_rad) * np.cos(yaw_rad)
 
         # 2D Contour
         fig = plt.figure(figsize=plt.figaspect(2.))

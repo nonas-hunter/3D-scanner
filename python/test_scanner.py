@@ -9,10 +9,4 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 scanner = sv.Scanner()
-scanner.set_position(150,90)
-
-stop = False
-while not stop:
-    scanner.get_distance()
-    user_input = input("Get Another Point?: ")
-    stop = "no" in user_input
+scanner.sweep(3)
