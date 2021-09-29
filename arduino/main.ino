@@ -35,8 +35,10 @@ String respondSensorMessage(String message) {
      * Returns:
      *  (String): message to be sent as a response
      */
-    int distance = analogRead(DISTANCE_SENSOR_PIN);
-    String response = String(distance, DEC);
+    int distance_1 = analogRead(DISTANCE_SENSOR_PIN);
+    int distance_2 = analogRead(DISTANCE_SENSOR_PIN);
+    int distance_3 = analogRead(DISTANCE_SENSOR_PIN);
+    String response = String(distance_1, DEC) + "," + String(distance_2, DEC) + "," + String(distance_3, DEC);
     return response;
 }
 
