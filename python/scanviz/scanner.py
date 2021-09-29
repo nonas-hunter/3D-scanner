@@ -38,4 +38,10 @@ class Scanner():
         logger.debug("Getting measured sensor distance.")
         response = self.comms.send_recieve("S", "GET")
         logger.debug(f"Information recieved: {response['data']}")
-        return int(response["data"])
+        raw_data = int(response["data"])
+        output = 48.7 - (0.15 * raw_data) + (0.000134 * (raw_data**2))
+        logger.debug(f"Measured Value: {output}")
+        return output
+
+    def sweep(self):
+        pass
