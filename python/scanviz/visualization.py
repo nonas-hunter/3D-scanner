@@ -4,6 +4,7 @@ import logging.config
 import os
 
 import numpy as np
+import scipy.signal as scipy
 import matplotlib.pyplot as plt
 from matplotlib import ticker, cm
 
@@ -30,22 +31,31 @@ class Visualization():
         if resolution > 60:
             raise ValueError("Resolution can't be higher than 180")
         pitch = np.linspace(-30, 30, resolution)
-        yaw = np.linspace(-60, 60, resolution*2)
+        yaw = np.linspace(-30, 30, resolution)
         pitch_mesh, yaw_mesh = np.meshgrid(pitch, yaw)
         return pitch_mesh, yaw_mesh
 
+    def _moving_avg(self, data):
+        window = np.ones((2, 2)) / 4
+        return scipy.convolve2d(data, window, 'valid')
+    
     def create_viz(self, pitch, yaw, radius):
         """Create a matplotlib graph to visualize the data."""
-        pitch_rad = np.deg2rad(pitch)
-        yaw_rad = np.deg2rad(yaw)
-        x = radius * np.sin(yaw_rad) * np.cos(pitch_rad)
-        y = radius * np.sin(pitch_rad)
-        z = radius * np.cos(pitch_rad) * np.cos(yaw_rad)
+        smooth_radius = self._moving_avg(radius) 
+        pitch_rad = [row[1:] for row in np.deg2rad(pitch)[1:,:]]
+        yaw_rad = [row[1:] for row in np.deg2rad(yaw)[1:,:]]
+        # Unfiltered Output
+        # smooth_radius = radius
+        # pitch_rad = np.deg2rad(pitch)
+        # yaw_rad = np.deg2rad(yaw)
+        x = smooth_radius * np.sin(yaw_rad) * np.cos(pitch_rad)
+        y = smooth_radius * np.sin(pitch_rad)
+        z = smooth_radius * np.cos(pitch_rad) * np.cos(yaw_rad)
 
-        # 2D Contour
         fig = plt.figure(figsize=plt.figaspect(2.))
         fig.suptitle('3D Scan')
 
+        # 2D Contour
         ax_2D = fig.add_subplot(1, 2, 2)
 
         contour = ax_2D.contourf(x, y, z)
@@ -55,16 +65,10 @@ class Visualization():
         # 3D Render   
         ax_3D = fig.add_subplot(1, 2, 1, projection='3d')
 
-        surf = ax_3D.plot_surface(
+        surf = ax_3D.scatter(
             x,
             z,
             y,
-            rstride=1,
-            cstride=1,
-            cmap=plt.get_cmap('jet'),
-            linewidth=0,
-            antialiased=False,
-            alpha=0.5,
         )
 
         fig.tight_layout()
