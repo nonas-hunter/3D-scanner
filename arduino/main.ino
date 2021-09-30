@@ -35,11 +35,13 @@ String respondSensorMessage(String message) {
      * Returns:
      *  (String): message to be sent as a response
      */
-    int distance_1 = analogRead(DISTANCE_SENSOR_PIN);
-    int distance_2 = analogRead(DISTANCE_SENSOR_PIN);
-    int distance_3 = analogRead(DISTANCE_SENSOR_PIN);
-    String response = String(distance_1, DEC) + "," + String(distance_2, DEC) + "," + String(distance_3, DEC);
-    return response;
+    String response = "";
+    int distance;
+    for (int i = 0; i <= 15; i++) {
+        distance = analogRead(DISTANCE_SENSOR_PIN);
+        response += String(distance, DEC) + ",";
+    }
+    return response.substring(0, response.length() - 1);
 }
 
 String respondServoMessage(String message) {
@@ -53,7 +55,7 @@ String respondServoMessage(String message) {
      */
     int pitch = message.substring(0, 3).toInt();
     int yaw = message.substring(4, 7).toInt();
-    int waitTime = 1;
+    int waitTime = 15;
     setServoPosition(pitch, yaw);
     String response = String(waitTime, DEC);
     return response;
