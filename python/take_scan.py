@@ -1,4 +1,4 @@
 import scanviz as sv
 
 scanner = sv.Scanner()
-scanner.sweep(3)
+scanner.sweep(25)

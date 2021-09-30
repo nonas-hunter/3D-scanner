@@ -9,4 +9,4 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 scanner = sv.Scanner()
-scanner.sweep(3)
+scanner.set_position(0, 0)
