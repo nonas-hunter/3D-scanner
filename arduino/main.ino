@@ -65,8 +65,8 @@ void sendMessage(char messageType, String messageData) {
     /* Send a message to python using serial
      * 
      * Parameters:
-     *  messageType (char): the type of the message. Examples include, 'R' for
-     *      response, 'T' for test.
+     *  messageType (char): the type of the message. Examples include, 'M' for
+     *      motor response, 'S' for sensor response, or 'T' for test.
      * messageData (String): the message data to be sent.
      */
     Serial.print(messageType);
