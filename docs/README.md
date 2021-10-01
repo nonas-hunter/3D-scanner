@@ -610,4 +610,374 @@ Thanks to the extra work we did while taking a scan of just a line, we were able
 pitch = np.linspace(-30, 30, resolution)
 ```
 
-We ran our 
+At this point we had fully completed the minimum-viable-product we were hoping to achieve. We set up our letter and took our first ten by ten image scan. The results are shown bellow:
+
+![pie-grid](results/result_1.png)
+
+
+### Filtering
+
+Looking at our first scan, it was mostly clear that we had scanned the letter J however there was still noise and random outliers. To fix these problems we did two things. The first one was to modify the arduino data collection code to collect multiple scans of the same location rather than just one. This would allow the python code to take the average of the many scans and hopefully reduce the number outliers in the final image. The second one was to apply a convolution filter to the finaly image using the `scipy` package. A convolution filter takes a matrix smaller than the original image and slides it across the image. For each grouping of points it slides over, it multiplies the group with the matrix and adds all the values which will represent one pixel in the filtered image. Ultimately, this filter would reduce the accuracy of the image, but also would help reduce any noise in the image. After all these changes were made, we had the final iteration of our code for the project.
+
+```python
+import time
+import logging
+import logging.config
+import serial
+
+import numpy as np
+import scipy.signal as scipy
+import matplotlib.pyplot as plt
+from matplotlib import ticker, cm
+
+logger_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logging.conf')
+logging.config.fileConfig(logger_path, disable_existing_loggers=False)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+class Communication():
+    """Infrastructure for serial communication with the Arduino."""
+
+    EOM = "\r\n"
+    SEND_MESSAGE_TYPES = ["M", "S", "T"]
+    RECIEVE_MESSAGE_TYPES = ["M", "S","T"]
+
+    def __init__(self, baudrate=115200, port="/dev/ttyACM4"):
+        """Instantiate a Communication object.
+
+        Parameters:
+            baudrate (int): the baudrate of the serial port. This should match the
+                baudrate set on the arduino.
+            port (str): the serial port where the arduino is connected.
+        """        
+
+        logger.info("Starting communication with Arduino...")
+        self.arduino = serial.Serial(port=port, baudrate=baudrate, timeout=5)
+        time.sleep(5)
+        self.arduino.flush()
+        response = self.send_recieve("T","12345")
+        if response["data"] == "12345":
+            logger.info("Serial communication ready!")
+        else:
+            logger.info(f"ERROR: {response}")
+   
+
+    def send(self, message_type, message_data):
+        """Send data to the arduino.
+
+        Parameters:
+            message_type (str): the message type. Must be a type listed in the send
+                message type list stored in the communications class.
+            message_data (str): data to be send over the serial bus to the arduino.
+        
+        Raises:
+            ValueError: when the message type does not match a message type listed
+                in the SEND_MESSAGE_TYPES list.
+        """
+        if message_type not in self.SEND_MESSAGE_TYPES:
+            raise ValueError(f"Incorrect message type: {message_type}")
+        message = f"{message_type}{message_data}{self.EOM}"
+        self.arduino.write(bytes(message, 'utf-8'))
+        
+        
+    def receive(self):
+        """Receive data from the arduino.
+
+        Returns:
+            (dict): contains message type, processed data, and error value.
+        """
+        raw_data = self.arduino.read_until(bytes(self.EOM, 'utf-8')).decode("utf-8") 
+        try:
+            message_type = raw_data[0]
+        except IndexError:
+            return {
+                "message_type": "ERROR",
+                "data": "EMPTY",
+                "error": 2,
+            }
+        if message_type in self.RECIEVE_MESSAGE_TYPES:
+            data = raw_data.split("\n")[0].split("\r")[0][1:]
+            return {
+                "message_type": message_type,
+                "data": data,
+                "error": 0,
+            }
+        else:
+            return {
+                "message_type": "ERROR",
+                "data": raw_data,
+                "error": 1,
+            }
+    
+    def send_recieve(self, message_type, message_data):
+        """Send data and expect a response.
+
+        Parameters:
+            message_type (str): the message type. Must be a type listed in the send
+                message type list stored in the communications class.
+            message_data (str): data to be send over the serial bus to the arduino.
+        Returns:
+            (dict): contains message type, processed data, and error value.
+        """
+        self.send(message_type, message_data)
+        response = self.receive()
+        if response["message_type"] != message_type:
+            raise ValueError(f"Unexpected message type. Message: {response}")
+        return response
+
+class Scanner():
+    """API for interfacing with the scanner"""
+
+    def __init__(self):
+        self.comms = Communication()
+        self.viz = Visualization()
+
+    def set_position(self, pitch, yaw):
+        """Send a message to the Arduino to set the pitch and roll of the Scanner.
+
+        Parameters:
+            pitch (float): Representing the desired pitch angle.
+            yaw (float): Representing the desired yaw angle.
+        """
+        adjusted_pitch = pitch + 150
+        adjusted_yaw = -yaw + 90
+        if adjusted_pitch > 180 or adjusted_yaw > 180:
+            raise ValueError("Cannot send motor angles greater than 180 deg.")
+        logger.debug(
+            "Setting servo positions to (pitch)"
+            f" {int(round(adjusted_pitch))}, (yaw) {int(round(adjusted_yaw))}."
+        )
+        message = f"{int(round(adjusted_pitch)):03d}+{int(round(adjusted_yaw)):03d}"
+        response = self.comms.send_recieve("M", message)
+        if int(response["data"]) == 0:
+            raise ValueError("Servo did not respond. Stopping program.")
+        else:
+            time.sleep(int(response["data"])/10)
+        logger.debug("Servo positions have been set.")
+
+    def get_distance(self):
+        """Send a message to Arduino to send three distance measurements over serial.
+
+        Returns:
+            (float): Calibrated output from distance sensor in inches.
+        """
+        logger.debug("Getting measured sensor distance.")
+        response = self.comms.send_recieve("S", "GET")
+        logger.debug(f"Information recieved: {response['data']}")
+        raw_data = response["data"].split(",")
+        output = []
+        for data in raw_data:
+            output += [48.7 - (0.15 * int(data)) + (0.000134 * (int(data)**2))]
+        logger.debug(f"Measured Value: {sum(output)/len(output)}")
+        return sum(output)/len(output)
+
+    def sweep(self, resolution):
+        """Sweep over a set of pitch and yaw values and collect distance data.
+        
+        Parameters:
+            resolution (int): Determines the number of measurements taken by the
+                sensor. The number of measurements equals (2*(resolution**2)).
+        """
+        logger.info(f"Scan Beginning. Estimated Time: {((resolution**2)*1.5)/60}")
+        pitch_mesh, yaw_mesh = self.viz.generate_mesh(resolution)
+        radius_mesh = []
+        for row in range(len(pitch_mesh)):
+            radius_mesh_row = []
+            for col in range(len(pitch_mesh[row])):
+                self.set_position(pitch_mesh[row][col], yaw_mesh[row][col])
+                radius_mesh_row += [self.get_distance()]
+            radius_mesh += [radius_mesh_row]
+        self.viz.create_viz(pitch_mesh, yaw_mesh, radius_mesh)
+
+class Visualization():
+    """Tools for visualizing scanner data."""
+    def __init__(self):
+        """Instantiate visualization object"""
+        pass
+
+    def generate_mesh(self, resolution):
+        """Generate pitch & yaw angles for scanning
+        
+        Parameters:
+            resolution (int): Number of points to scan
+        Returns:
+            (list): List of lists outlining all the pitch values to scan.
+            (list): List of lists outlining all the yaw values to scan.
+        """
+        if resolution > 60:
+            raise ValueError("Resolution can't be higher than 180")
+        pitch = np.linspace(-30, 30, resolution)
+        yaw = np.linspace(-30, 30, resolution)
+        pitch_mesh, yaw_mesh = np.meshgrid(pitch, yaw)
+        return pitch_mesh, yaw_mesh
+
+    def _moving_avg(self, data):
+        window = np.ones((2, 2)) / 4
+        return scipy.convolve2d(data, window, 'valid')
+    
+    def create_viz(self, pitch, yaw, radius):
+        """Create a matplotlib graph to visualize the data."""
+        smooth_radius = self._moving_avg(radius) 
+        pitch_rad = [row[1:] for row in np.deg2rad(pitch)[1:,:]]
+        yaw_rad = [row[1:] for row in np.deg2rad(yaw)[1:,:]]
+        # Unfiltered Output
+        # smooth_radius = radius
+        # pitch_rad = np.deg2rad(pitch)
+        # yaw_rad = np.deg2rad(yaw)
+        x = smooth_radius * np.sin(yaw_rad) * np.cos(pitch_rad)
+        y = smooth_radius * np.sin(pitch_rad)
+        z = smooth_radius * np.cos(pitch_rad) * np.cos(yaw_rad)
+
+        fig = plt.figure(figsize=plt.figaspect(2.))
+        fig.suptitle('3D Scan')
+
+        # 2D Contour
+        ax_2D = fig.add_subplot(1, 2, 2)
+
+        contour = ax_2D.contourf(x, y, z)
+        ax_2D.set_aspect('equal', 'box')
+        fig.colorbar(contour, ax=ax_2D, shrink=0.5)
+
+        # 3D Render   
+        ax_3D = fig.add_subplot(1, 2, 1, projection='3d')
+
+        surf = ax_3D.scatter(
+            x,
+            z,
+            y,
+        )
+
+        fig.tight_layout()
+        plt.show()
+```
+```c++
+#define TYPE_INDEX 0
+#define DATA_INDEX 1
+#define PITCH_SERVO_PIN 9
+#define YAW_SERVO_PIN 10
+#define DISTANCE_SENSOR_PIN 0
+#include <Servo.h>
+
+Servo pitchServo;
+Servo yawServo;
+
+int current_pitch;
+int current_yaw;
+
+bool setServoPosition(int pitch, int yaw) {
+    /* Set the servos to the given pitch and yaw.
+     * 
+     * Parameters:
+     *  pitch (int): PWM value for setting the angle of the pitch motor shaft.
+     *  yaw (int): PWM value for setting the angle of the yaw motor shaft.
+     * 
+     * Returns:
+     *  (bool): success of motor update
+     */
+    yawServo.write(yaw);
+    pitchServo.write(pitch);
+    return true;
+}
+
+String respondSensorMessage(String message) {
+    /* Decodes sensor command messages and generates response.
+     * 
+     * Parameters:
+     *  message (String): Data from sensor message sent over serial from python.
+     * 
+     * Returns:
+     *  (String): message to be sent as a response
+     */
+    String response = "";
+    int distance;
+    for (int i = 0; i <= 15; i++) {
+        distance = analogRead(DISTANCE_SENSOR_PIN);
+        response += String(distance, DEC) + ",";
+    }
+    return response.substring(0, response.length() - 1);
+}
+
+String respondServoMessage(String message) {
+    /* Decodes motor command messages and generates response.
+     * 
+     * Parameters:
+     *  message (String): Data from motor message sent over serial from python.
+     * 
+     * Returns:
+     *  (String): message to be sent as a response
+     */
+    int pitch = message.substring(0, 3).toInt();
+    int yaw = message.substring(4, 7).toInt();
+    int waitTime = 15;
+    setServoPosition(pitch, yaw);
+    String response = String(waitTime, DEC);
+    return response;
+}
+
+void sendMessage(char messageType, String messageData) {
+    /* Send a message to python using serial
+     * 
+     * Parameters:
+     *  messageType (char): the type of the message. Examples include, 'M' for
+     *      motor response, 'S' for sensor response, or 'T' for test.
+     * messageData (String): the message data to be sent.
+     */
+    Serial.print(messageType);
+    Serial.println(messageData);
+}
+
+void analyzeMessage(String message) {
+    /* Decode serial messages from python and execute corresponding
+     * response function and returns the response.
+     * 
+     * Parameters:
+     *  message (String): the raw message sent over serial from python.
+     */
+    char messageType = message.charAt(TYPE_INDEX);
+    String data = message.substring(DATA_INDEX);
+    String response;
+    switch (messageType) {
+        case 'M':
+            response = respondServoMessage(data);
+            sendMessage('M', response);
+            break;
+        case 'S':
+            response = respondSensorMessage(data);
+            sendMessage('S', response);
+            break;
+        case 'T':
+            sendMessage('T', "12345");
+            break;
+    }
+}
+
+void setup() {
+    /* The setup function starts serial communcation, sets up a debug LED, and
+     * assigns PWM pins to servos. 
+     */
+    Serial.begin(115200);
+    Serial.flush();
+    pinMode(LED_BUILTIN, OUTPUT);
+    digitalWrite(LED_BUILTIN, LOW);
+
+    pitchServo.attach(PITCH_SERVO_PIN);
+    yawServo.attach(YAW_SERVO_PIN);
+    current_pitch = 0;
+    current_yaw = 0;
+    setServoPosition(current_pitch, current_yaw);
+}
+
+void loop() {
+    /* The main loop reads incoming serial messages and sends them
+     * to the analyzeMessage function where they are decoded and the
+     * proper actions are taken.
+     */
+    if (Serial.available() > 0) {
+        digitalWrite(LED_BUILTIN, HIGH);
+        String message = Serial.readStringUntil('\n');
+        analyzeMessage(message);
+    } else {
+        digitalWrite(LED_BUILTIN, LOW);
+    }
+}
+```
